@@ -1,3 +1,9 @@
+
+{{-- waypoint height顯示和更動分開
+現行：input被綁定
+新做法：僅綁定display，input另外做並trigger height value update on input change --}}
+
+
 <script src="/vendor/CesiumUnminified/Cesium.js"></script>
 <script src='https://cdnjs.cloudflare.com/ajax/libs/knockout/3.5.0/knockout-min.js'></script>
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
@@ -17,7 +23,7 @@
         padding-left: 0.5rem;
         top: 5px;
         left: 5px;
-        width: 35%;
+        width: 40%;
         height: 20%;
         background-color: white;
         overflow: scroll;
@@ -32,6 +38,7 @@
 <div id="viewer"></div>
 
 <div id="toolbox">
+    <button>upload</button>
     <table>
         <thead>
             <tr>
@@ -44,9 +51,9 @@
         <tbody data-bind="foreach: waypointsArray">
             <tr>
                 <td data-bind="text: $index"></td>
-                <td data-bind="text: longitude"></td>
-                <td data-bind="text: latitude"></td>
-                <td><input type="text" data-bind="textInput: height" style="width: 3.5rem;"></td>
+                <td data-bind="text: longitude.toFixed(6)"></td>
+                <td data-bind="text: latitude.toFixed(6)"></td>
+                <td><input type="number" data-bind="textInput: height.toFixed(2)" style="width: 4rem;"></td>
             </tr>
         </tbody>
     </table>
