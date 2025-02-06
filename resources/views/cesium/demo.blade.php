@@ -95,7 +95,7 @@
     window.CESIUM_BASE_URL = '/vendor/CesiumUnminified';
     Cesium.Ion.defaultAccessToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiIxNDczMzZmOS1kNDgxLTRkOGQtYTY0Mi0xMzVjNjZiZTdjNmQiLCJpZCI6MjczMjUwLCJpYXQiOjE3Mzg2NTY1NTB9.A5VQBmzdB-kyb75qWpyC4Q5iO8WOARHFqeiE_hjksz0';
     const viewer = new Cesium.Viewer('viewer', {
-        terrainProvider: Cesium.createWorldTerrain()
+        terrain: Cesium.Terrain.fromWorldTerrain()
     });
     const pinBuilder = new Cesium.PinBuilder();
     const handler = new Cesium.ScreenSpaceEventHandler(viewer.canvas);
