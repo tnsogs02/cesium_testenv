@@ -51,9 +51,9 @@
         <tbody data-bind="foreach: waypointsArray">
             <tr>
                 <td data-bind="text: $index"></td>
-                <td data-bind="text: longitude.toFixed(6)"></td>
-                <td data-bind="text: latitude.toFixed(6)"></td>
-                <td><input type="number" data-bind="textInput: height.toFixed(2)" style="width: 4rem;"></td>
+                <td data-bind="text: longitude"></td>
+                <td data-bind="text: latitude"></td>
+                <td><input type="number" data-bind="textInput: height" style="width: 4rem;"></td>
             </tr>
         </tbody>
     </table>
@@ -65,31 +65,80 @@
     const viewer = new Cesium.Viewer('viewer');
     const pinBuilder = new Cesium.PinBuilder();
 
+    function roundToPrecision(num, precision) {
+        const factor = Math.pow(10, precision);
+        return Math.round(num * factor) / factor;
+    }
+
     let handler;
     let currentCoordinate;
     let waypointsArray = ko.observableArray();
     let path;
+    ko.extenders.numeric = function(target, precision) {
+        let result = ko.pureComputed({
+            read: target,
+            write: function(newValue) {
+                let current = target();
+                let valueToWrite = parseFloat(newValue) || 0;
+                valueToWrite = roundToPrecision(valueToWrite, precision);
+                if (valueToWrite !== current) {
+                    target(valueToWrite);
+                }
+            }
+        }).extend({notify: 'always'});
 
-    ko.applyBindings({ waypointsArray }, document.getElementById('toolbox'));
+        result(target());
+
+        return result;
+    }
+
+
+    let WaypointViewModel = function() {
+        let self = this;
+        self.waypointsArray = ko.observableArray();
+
+        self.addWaypoint = function(longitude, latitude, height, billboardId) {
+            waypointViewModel.waypointsArray.push({
+                longitude: roundToPrecision(longitude, 6),
+                latitude: roundToPrecision(latitude, 6),
+                height: ko.observable(height).extend({numeric: 2}),
+                billboard_id: billboardId
+            });
+        }
+
+        self.getWaypointByBillboardId = function(billboardId) {
+            const waypoint = self.waypointsArray().filter(item => item.billboard_id === billboardId)[0];
+            return {
+                order: self.waypointsArray().indexOf(waypoint),
+                longitude: waypoint.longitude,
+                latitude: waypoint.latitude,
+                height: waypoint.height(),
+                billboard_id: waypoint.billboard_id
+            }
+        }
+    }
+
+    let waypointViewModel = new WaypointViewModel();
+    ko.applyBindings(waypointViewModel, document.getElementById('toolbox'));
 
     function renderPath(){
         if (path) {
             viewer.entities.remove(path);
         }
-        if (waypointsArray().length > 1) {
+        if (waypointViewModel.waypointsArray().length > 1) {
             const waypointsRenderArray = [];
-            waypointsArray().forEach(waypoint => {
+            waypointViewModel.waypointsArray().forEach(waypoint => {
                 waypointsRenderArray.push(
                     waypoint.longitude,
                     waypoint.latitude,
-                    waypoint.height
+                    waypoint.height()
                 );
             });
 
             waypointsRenderArray.push(
-                waypointsArray()[0].longitude,
-                waypointsArray()[0].latitude,
-                waypointsArray()[0].height
+                waypointViewModel.waypointsArray()[0].longitude,
+                waypointViewModel.waypointsArray()[0].latitude,
+                waypointViewModel.waypointsArray()[0].height()
             );
 
             path = viewer.entities.add({
@@ -104,8 +153,16 @@
     }
 
     function clearAll() {
-        viewer.entities.removeAll();
-        waypointsArray.removeAll();
+        Swal.fire({
+            title: "Clear all waypoints?",
+            showCancelButton: true,
+            confirmButtonText: "Process",
+        }).then((result) => {
+            if (result.isConfirmed) {
+                viewer.entities.removeAll();
+                waypointViewModel.waypointsArray.removeAll();
+            }
+        });
     }
 
     const coordBox = viewer.entities.add({
@@ -151,12 +208,7 @@
                 }
             })
 
-            waypointsArray.push({
-                longitude: longitude,
-                latitude: latitude,
-                height: height,
-                billboard_id: billboard.id
-            });
+            waypointViewModel.addWaypoint(longitude, latitude, height, billboard.id);
         }
     }, Cesium.ScreenSpaceEventType.RIGHT_CLICK);
 
@@ -168,29 +220,21 @@
                     if(viewer.selectedEntity) {
                         if(viewer.selectedEntity.billboard){
                             const billboardId = viewer.selectedEntity.id;
-                            waypointsArray.remove(function (waypointsArray) {
+                            waypointViewModel.waypointsArray.remove(function (waypointsArray) {
                                 return waypointsArray.billboard_id === billboardId;
                             });
                             viewer.entities.remove(viewer.entities.getById(billboardId));
                         }
                     }
                     break;
-                case 'r':
                 case 'R':
+                case 'r':
                     renderPath();
                     break;
 
-                case 'c':
                 case 'C':
-                    Swal.fire({
-                        title: "Clear all waypoints?",
-                        showCancelButton: true,
-                        confirmButtonText: "Process",
-                    }).then((result) => {
-                        if (result.isConfirmed) {
-                            clearAll();
-                        }
-                    });
+                case 'c':
+                    clearAll();
                     break;
             }
         }
@@ -199,9 +243,9 @@
     viewer.selectedEntityChanged.addEventListener(function(selectedEntity) {
         if (selectedEntity) {
             if (selectedEntity.billboard) {
-                const waypoint = waypointsArray().filter(item => item.billboard_id === selectedEntity.id)[0];
                 const billboard = viewer.entities.getById(selectedEntity.id);
-                billboard.description = `Waypoint ${waypointsArray.indexOf(waypoint)}(${waypoint.longitude.toFixed(6)}, ${waypoint.latitude.toFixed(6)}, ${waypoint.height.toFixed(2)})`;
+                const waypoint = waypointViewModel.getWaypointByBillboardId(selectedEntity.id);
+                billboard.description = `Waypoint ${waypoint.order}(${waypoint.longitude.toFixed(6)}, ${waypoint.latitude.toFixed(6)}, ${waypoint.height.toFixed(2)})`;
             }
         }
     });
