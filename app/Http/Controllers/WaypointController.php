@@ -15,12 +15,22 @@ class WaypointController extends Controller
     }
 
     public function addWaypoints(Request $request) {
+<<<<<<< HEAD
         $waypoints = $request->get('waypoints');
         if(!is_array($waypoints) || count($waypoints) < 1) {
             return response()->json(['status' => 'failed', 'description' => 'No waypoints provided']);
         }
         $this->waypointService->addWaypoints($request->get('waypoints'));
         return response()->json(['status' => 'success']);
+=======
+        $waypoints = $request->get('waypoints', null);
+        if($waypoints == null) {
+            $this->waypointService->clearWaypoints();
+        } else {
+            $this->waypointService->addWaypoints($request->get('waypoints'));
+        }
+        return response()->json(['status' => 'success', 'waypoints' => $waypoints]);
+>>>>>>> a8c2fc1 (complete - waypoints read/write)
     }
 
     public function getWaypoints() {
