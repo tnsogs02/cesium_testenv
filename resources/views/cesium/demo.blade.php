@@ -1,3 +1,7 @@
+{{--
+    當mouse hover on #toolbox時不允許reder或remove waypoint
+--}}
+
 <script src="https://code.jquery.com/jquery-3.7.1.min.js" integrity="sha256-/JqT3SQfawRcv/BIHPThkBvs0OEvtFFmqPF/lYI/Cxo=" crossorigin="anonymous"></script>
 <script src="/vendor/CesiumUnminified/Cesium.js"></script>
 <script src='https://cdnjs.cloudflare.com/ajax/libs/knockout/3.5.0/knockout-min.js'></script>
