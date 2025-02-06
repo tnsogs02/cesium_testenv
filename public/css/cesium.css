@@ -1,0 +1,22 @@
+#cmap {
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+}
+
+#toolbox {
+    position: absolute;
+    padding-left: 0.5rem;
+    top: 5px;
+    left: 5px;
+    width: 40%;
+    height: 20%;
+    background-color: white;
+    overflow: scroll;
+}
+
+#toolbox th, #toolbox td {
+    padding-right: 0.5rem;
+}

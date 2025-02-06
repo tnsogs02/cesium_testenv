@@ -3,32 +3,7 @@
 <script src='https://cdnjs.cloudflare.com/ajax/libs/knockout/3.5.0/knockout-min.js'></script>
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <link rel="stylesheet" href="/vendor/CesiumUnminified/Widgets/widgets.css" />
-
-<style>
-    #cmap {
-        width: 100%;
-        height: 100%;
-        margin: 0;
-        padding: 0;
-        overflow: hidden;
-    }
-
-    #toolbox {
-        position: absolute;
-        padding-left: 0.5rem;
-        top: 5px;
-        left: 5px;
-        width: 40%;
-        height: 20%;
-        background-color: white;
-        overflow: scroll;
-    }
-
-    #toolbox th, #toolbox td {
-        padding-right: 0.5rem;
-    }
-</style>
-
+<link rel="stylesheet" href="/css/cesium.css" />
 
 <div id="viewer"></div>
 
@@ -116,7 +91,7 @@
             });
         }
 
-        self.getWaypointByBillboardId = function(billboardId) {
+        self.getWaypointInfoByBillboardId = function(billboardId) {
             const waypoint = self.waypointsArray().filter(item => item.billboard_id === billboardId)[0];
             return {
                 order: self.waypointsArray().indexOf(waypoint),
@@ -127,7 +102,7 @@
             }
         }
 
-        self.getWaypointsFromRemote = function() {
+        self.renderWaypointsFromRemote = function() {
             $.ajax({
                 type: "GET",
                 url: "{{ route('cesium.waypoints_get') }}",
@@ -158,7 +133,7 @@
                 },
                 success: function(data) {
                     if(data.status === "success") {
-                        self.getWaypointsFromRemote();
+                        self.renderWaypointsFromRemote();
                         swal.fire({
                             icon: 'success',
                             title: 'Waypoints synced successfully',
@@ -191,7 +166,7 @@
                     const billboard = viewer.entities.add({
                         position: Cesium.Cartesian3.fromDegrees(waypoint.longitude, waypoint.latitude, waypoint.height()),
                         billboard: {
-                            image: pinBuilder.fromColor(Cesium.Color.BLUE, 48).toDataURL(),
+                            image: pinBuilder.fromText(self.waypointsArray().indexOf(waypoint), Cesium.Color.BLUE, 48).toDataURL(),
                             verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
                         }
                     });
@@ -236,12 +211,10 @@
         }
     }
 
-
-
     let waypointViewModel = new WaypointViewModel();
     ko.applyBindings(waypointViewModel, document.getElementById('toolbox'));
 
-    waypointViewModel.getWaypointsFromRemote();
+    waypointViewModel.renderWaypointsFromRemote();
 
     const coordBox = viewer.entities.add({
         label: {
@@ -277,15 +250,8 @@
             const longitude = Cesium.Math.toDegrees(cartographic.longitude);
             const latitude = Cesium.Math.toDegrees(cartographic.latitude);
             const height = cartographic.height;
-            const billboard = viewer.entities.add({
-                position: currentCoordinate,
-                billboard: {
-                    image: pinBuilder.fromColor(Cesium.Color.BLUE, 48).toDataURL(),
-                    verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
-                }
-            })
-
-            waypointViewModel.addWaypoint(longitude, latitude, height, billboard.id);
+            waypointViewModel.addWaypoint(longitude, latitude, height);
+            waypointViewModel.render();
         }
     }, Cesium.ScreenSpaceEventType.RIGHT_CLICK);
 
@@ -301,6 +267,7 @@
                                 return waypointsArray.billboard_id === billboardId;
                             });
                             viewer.entities.remove(viewer.entities.getById(billboardId));
+                            waypointViewModel.render();
                         }
                     }
                     break;
@@ -321,8 +288,8 @@
         if (selectedEntity) {
             if (selectedEntity.billboard) {
                 const billboard = viewer.entities.getById(selectedEntity.id);
-                const waypoint = waypointViewModel.getWaypointByBillboardId(selectedEntity.id);
-                billboard.description = `Waypoint ${waypoint.order}(${waypoint.longitude.toFixed(6)}, ${waypoint.latitude.toFixed(6)}, ${waypoint.height.toFixed(2)})`;
+                const waypointInfo = waypointViewModel.getWaypointInfoByBillboardId(selectedEntity.id);
+                billboard.description = `Waypoint ${waypointInfo.order}(${waypointInfo.longitude}, ${waypointInfo.latitude}, ${waypointInfo.height})`;
             }
         }
     });
