@@ -12,4 +12,5 @@ Route::group(['prefix' => 'cesium'], function () {
         return view('cesium.demo');
     })->name('cesium.index');
     Route::post('waypoints', [WaypointController::class, 'addWaypoints'])->name('cesium.waypoints_add');
+    Route::get('waypoints', [WaypointController::class, 'getWaypoints'])->name('cesium.waypoints_get');
 });

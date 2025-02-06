@@ -2,8 +2,15 @@
 
 namespace App\Services;
 
-class WaypointService {
-    public function addWaypoint() {
+use App\Models\Waypoints;
 
+class WaypointService {
+    public function addWaypoints($waypoints) {
+        Waypoints::truncate();
+        Waypoints::insert($waypoints);
+    }
+
+    public function getWaypoints() {
+        return Waypoints::all();
     }
 }

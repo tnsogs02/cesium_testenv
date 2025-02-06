@@ -55,20 +55,11 @@
 </div>
 
 <script>
-    window.CESIUM_BASE_URL = '/js/vendor/CesiumUnminified';
-    Cesium.Ion.defaultAccessToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiIxNDczMzZmOS1kNDgxLTRkOGQtYTY0Mi0xMzVjNjZiZTdjNmQiLCJpZCI6MjczMjUwLCJpYXQiOjE3Mzg2NTY1NTB9.A5VQBmzdB-kyb75qWpyC4Q5iO8WOARHFqeiE_hjksz0';
-    const viewer = new Cesium.Viewer('viewer');
-    const pinBuilder = new Cesium.PinBuilder();
-
     function roundToPrecision(num, precision) {
         const factor = Math.pow(10, precision);
         return Math.round(num * factor) / factor;
     }
 
-    let handler;
-    let currentCoordinate;
-    let waypointsArray = ko.observableArray();
-    let path;
     ko.extenders.numeric = function(target, precision) {
         let result = ko.pureComputed({
             read: target,
@@ -81,19 +72,25 @@
                 }
             }
         }).extend({notify: 'always'});
-
         result(target());
-
         return result;
     }
 
+    window.CESIUM_BASE_URL = '/js/vendor/CesiumUnminified';
+    Cesium.Ion.defaultAccessToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiIxNDczMzZmOS1kNDgxLTRkOGQtYTY0Mi0xMzVjNjZiZTdjNmQiLCJpZCI6MjczMjUwLCJpYXQiOjE3Mzg2NTY1NTB9.A5VQBmzdB-kyb75qWpyC4Q5iO8WOARHFqeiE_hjksz0';
+    const viewer = new Cesium.Viewer('viewer');
+    const pinBuilder = new Cesium.PinBuilder();
+    const handler = new Cesium.ScreenSpaceEventHandler(viewer.canvas);
+    let currentCoordinate;
+    let waypointsArray = ko.observableArray();
+    let path;
 
     let WaypointViewModel = function() {
         let self = this;
         self.waypointsArray = ko.observableArray();
 
         self.addWaypoint = function(longitude, latitude, height, billboardId) {
-            waypointViewModel.waypointsArray.push({
+            self.waypointsArray.push({
                 longitude: roundToPrecision(longitude, 6),
                 latitude: roundToPrecision(latitude, 6),
                 height: ko.observable(height).extend({numeric: 2}),
@@ -128,62 +125,90 @@
                     })
                 },
                 success: function(data) {
-                    console.log(data);
+                    if(data.status === "success") {
+                        swal.fire({
+                            icon: 'success',
+                            title: 'Waypoints uploaded successfully',
+                            showConfirmButton: true,
+                            timer: 5000
+                        })
+                    } else {
+                        swal.fire({
+                            icon: 'error',
+                            title: 'Waypoints upload failed',
+                            text: data.description,
+                            showConfirmButton: true,
+                        })
+                    }
                 }
             })
+        }
 
+        self.renderPath = function () {
+            if (path) {
+                viewer.entities.remove(path);
+            }
+            if (self.waypointsArray().length > 1) {
+                const waypointsRenderArray = [];
+                self.waypointsArray().forEach(waypoint => {
+                    waypointsRenderArray.push(
+                        waypoint.longitude,
+                        waypoint.latitude,
+                        waypoint.height()
+                    );
+                });
 
+                waypointsRenderArray.push(
+                    self.waypointsArray()[0].longitude,
+                    self.waypointsArray()[0].latitude,
+                    self.waypointsArray()[0].height()
+                );
 
+                path = viewer.entities.add({
+                    polyline: {
+                        positions: Cesium.Cartesian3.fromDegreesArrayHeights(waypointsRenderArray),
+                        width: 5,
+                        material: Cesium.Color.GREEN,
+                        clampToGround: false,
+                    },
+                });
+            }
+        }
 
+        self.clearAll = function () {
+            Swal.fire({
+                title: "Clear all waypoints?",
+                showCancelButton: true,
+                confirmButtonText: "Process",
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    viewer.entities.removeAll();
+                    self.waypointsArray.removeAll();
+                }
+            });
         }
     }
+
+
 
     let waypointViewModel = new WaypointViewModel();
     ko.applyBindings(waypointViewModel, document.getElementById('toolbox'));
-
-    function renderPath(){
-        if (path) {
-            viewer.entities.remove(path);
-        }
-        if (waypointViewModel.waypointsArray().length > 1) {
-            const waypointsRenderArray = [];
-            waypointViewModel.waypointsArray().forEach(waypoint => {
-                waypointsRenderArray.push(
-                    waypoint.longitude,
-                    waypoint.latitude,
-                    waypoint.height()
-                );
-            });
-
-            waypointsRenderArray.push(
-                waypointViewModel.waypointsArray()[0].longitude,
-                waypointViewModel.waypointsArray()[0].latitude,
-                waypointViewModel.waypointsArray()[0].height()
-            );
-
-            path = viewer.entities.add({
-                polyline: {
-                    positions: Cesium.Cartesian3.fromDegreesArrayHeights(waypointsRenderArray),
-                    width: 5,
-                    material: Cesium.Color.GREEN,
-                    clampToGround: false,
-                },
+    $.ajax({
+        type: "GET",
+        url: "{{ route('cesium.waypoints_get') }}",
+        success: function(data) {
+            data.waypoints.forEach(waypoint => {
+                const billboard = viewer.entities.add({
+                    position: Cesium.Cartesian3.fromDegrees(waypoint.longitude, waypoint.latitude, waypoint.height),
+                    billboard: {
+                        image: pinBuilder.fromColor(Cesium.Color.BLUE, 48).toDataURL(),
+                        verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
+                    }
+                });
+                waypointViewModel.addWaypoint(waypoint.longitude, waypoint.latitude, waypoint.height, billboard.id);
             });
         }
-    }
-
-    function clearAll() {
-        Swal.fire({
-            title: "Clear all waypoints?",
-            showCancelButton: true,
-            confirmButtonText: "Process",
-        }).then((result) => {
-            if (result.isConfirmed) {
-                viewer.entities.removeAll();
-                waypointViewModel.waypointsArray.removeAll();
-            }
-        });
-    }
+    })
 
     const coordBox = viewer.entities.add({
         label: {
@@ -196,7 +221,6 @@
         },
     });
 
-    handler = new Cesium.ScreenSpaceEventHandler(viewer.canvas);
     handler.setInputAction(movement => {
         currentCoordinate = viewer.camera.pickEllipsoid(
             movement.endPosition,
@@ -249,12 +273,12 @@
                     break;
                 case 'R':
                 case 'r':
-                    renderPath();
+                    waypointViewModel.renderPath();
                     break;
 
                 case 'C':
                 case 'c':
-                    clearAll();
+                    waypointViewModel.clearAll();
                     break;
             }
         }
@@ -269,6 +293,5 @@
             }
         }
     });
-
 </script>
 
