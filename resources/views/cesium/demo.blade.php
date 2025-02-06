@@ -1,10 +1,5 @@
-
-{{-- waypoint height顯示和更動分開
-現行：input被綁定
-新做法：僅綁定display，input另外做並trigger height value update on input change --}}
-
-
-<script src="/vendor/CesiumUnminified/Cesium.js"></script>
+<script src="https://code.jquery.com/jquery-3.7.1.min.js" integrity="sha256-/JqT3SQfawRcv/BIHPThkBvs0OEvtFFmqPF/lYI/Cxo=" crossorigin="anonymous"></script>
+<script src="/js/vendor/CesiumUnminified/Cesium.js"></script>
 <script src='https://cdnjs.cloudflare.com/ajax/libs/knockout/3.5.0/knockout-min.js'></script>
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <link rel="stylesheet" href="/vendor/CesiumUnminified/Widgets/widgets.css" />
@@ -27,8 +22,8 @@
         height: 20%;
         background-color: white;
         overflow: scroll;
-
     }
+
     #toolbox th, #toolbox td {
         padding-right: 0.5rem;
     }
@@ -38,7 +33,7 @@
 <div id="viewer"></div>
 
 <div id="toolbox">
-    <button>upload</button>
+    <button data-bind="click: uploadWaypoints">upload</button>
     <table>
         <thead>
             <tr>
@@ -60,7 +55,7 @@
 </div>
 
 <script>
-    window.CESIUM_BASE_URL = '/vendor/CesiumUnminified';
+    window.CESIUM_BASE_URL = '/js/vendor/CesiumUnminified';
     Cesium.Ion.defaultAccessToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiIxNDczMzZmOS1kNDgxLTRkOGQtYTY0Mi0xMzVjNjZiZTdjNmQiLCJpZCI6MjczMjUwLCJpYXQiOjE3Mzg2NTY1NTB9.A5VQBmzdB-kyb75qWpyC4Q5iO8WOARHFqeiE_hjksz0';
     const viewer = new Cesium.Viewer('viewer');
     const pinBuilder = new Cesium.PinBuilder();
@@ -115,6 +110,31 @@
                 height: waypoint.height(),
                 billboard_id: waypoint.billboard_id
             }
+        }
+
+        self.uploadWaypoints = function() {
+            $.ajax({
+                type: "POST",
+                url: "{{ route('cesium.waypoints_add') }}",
+                data: {
+                    _token: '{{ csrf_token() }}',
+                    waypoints: self.waypointsArray().map(waypoint => {
+                        return {
+                            order: self.waypointsArray().indexOf(waypoint),
+                            longitude: waypoint.longitude,
+                            latitude: waypoint.latitude,
+                            height: waypoint.height(),
+                        }
+                    })
+                },
+                success: function(data) {
+                    console.log(data);
+                }
+            })
+
+
+
+
         }
     }
 

@@ -14,7 +14,7 @@ class WaypointController extends Controller
         $this->request = $request;
     }
 
-    public function addWaypoint() {
+    public function addWaypoints() {
         dd($this->request->get('waypoints'));
     }
 }
