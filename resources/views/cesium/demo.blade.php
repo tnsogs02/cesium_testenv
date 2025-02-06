@@ -76,9 +76,6 @@
         return result;
     }
 
-<<<<<<< HEAD
-    window.CESIUM_BASE_URL = '/js/vendor/CesiumUnminified';
-=======
     ko.extenders.triggerRender = function(target, param) {
         let result = ko.pureComputed({
             read: target,
@@ -96,7 +93,6 @@
     }
 
     window.CESIUM_BASE_URL = '/vendor/CesiumUnminified';
->>>>>>> a8c2fc1 (complete - waypoints read/write)
     Cesium.Ion.defaultAccessToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiIxNDczMzZmOS1kNDgxLTRkOGQtYTY0Mi0xMzVjNjZiZTdjNmQiLCJpZCI6MjczMjUwLCJpYXQiOjE3Mzg2NTY1NTB9.A5VQBmzdB-kyb75qWpyC4Q5iO8WOARHFqeiE_hjksz0';
     const viewer = new Cesium.Viewer('viewer');
     const pinBuilder = new Cesium.PinBuilder();
@@ -109,11 +105,7 @@
         let self = this;
         self.waypointsArray = ko.observableArray();
 
-<<<<<<< HEAD
-        self.addWaypoint = function(longitude, latitude, height, billboardId) {
-=======
         self.addWaypoint = function(longitude, latitude, height, billboardId = null) {
->>>>>>> a8c2fc1 (complete - waypoints read/write)
             self.waypointsArray.push({
                 longitude: roundToPrecision(longitude, 6),
                 latitude: roundToPrecision(latitude, 6),
@@ -164,27 +156,17 @@
                 },
                 success: function(data) {
                     if(data.status === "success") {
-<<<<<<< HEAD
-                        swal.fire({
-                            icon: 'success',
-                            title: 'Waypoints uploaded successfully',
-=======
                         self.getWaypointsFromRemote();
                         swal.fire({
                             icon: 'success',
                             title: 'Waypoints synced successfully',
->>>>>>> a8c2fc1 (complete - waypoints read/write)
                             showConfirmButton: true,
                             timer: 5000
                         })
                     } else {
                         swal.fire({
                             icon: 'error',
-<<<<<<< HEAD
-                            title: 'Waypoints upload failed',
-=======
                             title: 'Waypoints sync failed',
->>>>>>> a8c2fc1 (complete - waypoints read/write)
                             text: data.description,
                             showConfirmButton: true,
                         })
@@ -193,17 +175,9 @@
             })
         }
 
-<<<<<<< HEAD
-        self.renderPath = function () {
-            if (path) {
-                viewer.entities.remove(path);
-            }
-            if (self.waypointsArray().length > 1) {
-=======
         self.render = function () {
             viewer.entities.removeAll();
             if (self.waypointsArray().length >= 1) {
->>>>>>> a8c2fc1 (complete - waypoints read/write)
                 const waypointsRenderArray = [];
                 self.waypointsArray().forEach(waypoint => {
                     waypointsRenderArray.push(
@@ -211,38 +185,6 @@
                         waypoint.latitude,
                         waypoint.height()
                     );
-<<<<<<< HEAD
-                });
-
-                waypointsRenderArray.push(
-                    self.waypointsArray()[0].longitude,
-                    self.waypointsArray()[0].latitude,
-                    self.waypointsArray()[0].height()
-                );
-
-                path = viewer.entities.add({
-                    polyline: {
-                        positions: Cesium.Cartesian3.fromDegreesArrayHeights(waypointsRenderArray),
-                        width: 5,
-                        material: Cesium.Color.GREEN,
-                        clampToGround: false,
-                    },
-                });
-            }
-        }
-
-        self.clearAll = function () {
-            Swal.fire({
-                title: "Clear all waypoints?",
-                showCancelButton: true,
-                confirmButtonText: "Process",
-            }).then((result) => {
-                if (result.isConfirmed) {
-                    viewer.entities.removeAll();
-                    self.waypointsArray.removeAll();
-                }
-            });
-=======
 
                     const billboard = viewer.entities.add({
                         position: Cesium.Cartesian3.fromDegrees(waypoint.longitude, waypoint.latitude, waypoint.height()),
@@ -289,7 +231,6 @@
                 viewer.entities.removeAll();
                 self.waypointsArray.removeAll();
             }
->>>>>>> a8c2fc1 (complete - waypoints read/write)
         }
     }
 
@@ -297,27 +238,8 @@
 
     let waypointViewModel = new WaypointViewModel();
     ko.applyBindings(waypointViewModel, document.getElementById('toolbox'));
-<<<<<<< HEAD
-    $.ajax({
-        type: "GET",
-        url: "{{ route('cesium.waypoints_get') }}",
-        success: function(data) {
-            data.waypoints.forEach(waypoint => {
-                const billboard = viewer.entities.add({
-                    position: Cesium.Cartesian3.fromDegrees(waypoint.longitude, waypoint.latitude, waypoint.height),
-                    billboard: {
-                        image: pinBuilder.fromColor(Cesium.Color.BLUE, 48).toDataURL(),
-                        verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
-                    }
-                });
-                waypointViewModel.addWaypoint(waypoint.longitude, waypoint.latitude, waypoint.height, billboard.id);
-            });
-        }
-    })
-=======
 
     waypointViewModel.getWaypointsFromRemote();
->>>>>>> a8c2fc1 (complete - waypoints read/write)
 
     const coordBox = viewer.entities.add({
         label: {
@@ -382,11 +304,7 @@
                     break;
                 case 'R':
                 case 'r':
-<<<<<<< HEAD
-                    waypointViewModel.renderPath();
-=======
                     waypointViewModel.render();
->>>>>>> a8c2fc1 (complete - waypoints read/write)
                     break;
 
                 case 'C':
