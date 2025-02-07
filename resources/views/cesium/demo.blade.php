@@ -1,5 +1,5 @@
 {{--
-    當mouse hover on #toolbox時不允許reder或remove waypoint
+    todo list:當mouse hover on #toolbox時不允許render或remove waypoint
 --}}
 
 <script src="https://code.jquery.com/jquery-3.7.1.min.js" integrity="sha256-/JqT3SQfawRcv/BIHPThkBvs0OEvtFFmqPF/lYI/Cxo=" crossorigin="anonymous"></script>
@@ -12,10 +12,15 @@
 <div id="viewer"></div>
 
 <div id="toolbox">
-    <button data-bind="click: syncWaypoints">Sync</button>
+    <div style="display: flex;">
+        <button data-bind="click: syncWaypoints">Sync</button>
+        <button data-bind="click: removeSelectedWaypoints">Remove Selected</button>
+        <label>Default Height:<input type="number" data-bind="textInput: defaultHeight" style="width: 4rem;"></label>
+    </div>
     <table>
         <thead>
             <tr>
+                <td><input type="checkbox" data-bind="checked: selectAllWaypoints"></td>
                 <th>No.</th>
                 <th>Longtitude</th>
                 <th>Latitude</th>
@@ -24,6 +29,7 @@
         </thead>
         <tbody data-bind="foreach: waypointsArray">
             <tr>
+                <td><input type="checkbox" data-bind="checked: isSelected"></td>
                 <td data-bind="text: $index"></td>
                 <td data-bind="text: longitude"></td>
                 <td data-bind="text: latitude"></td>
@@ -55,42 +61,65 @@
         return result;
     }
 
-    ko.extenders.triggerRender = function(target, param) {
-        let result = ko.pureComputed({
-            read: target,
-            write: function(newValue) {
-                let current = target();
-                let valueToWrite = parseFloat(newValue) || 0;
-                valueToWrite = roundToPrecision(valueToWrite, precision);
-                if (valueToWrite !== current) {
-                    target(valueToWrite);
-                }
-            }
-        }).extend({notify: 'always'});
-        result(target());
-        return result;
-    }
-
     window.CESIUM_BASE_URL = '/vendor/CesiumUnminified';
     Cesium.Ion.defaultAccessToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiIxNDczMzZmOS1kNDgxLTRkOGQtYTY0Mi0xMzVjNjZiZTdjNmQiLCJpZCI6MjczMjUwLCJpYXQiOjE3Mzg2NTY1NTB9.A5VQBmzdB-kyb75qWpyC4Q5iO8WOARHFqeiE_hjksz0';
     const viewer = new Cesium.Viewer('viewer', {
         terrain: Cesium.Terrain.fromWorldTerrain()
     });
+    const coordBox = viewer.entities.add({
+        label: {
+            show: false,
+            showBackground: true,
+            font: "14px monospace",
+            horizontalOrigin: Cesium.HorizontalOrigin.LEFT,
+            verticalOrigin: Cesium.VerticalOrigin.TOP,
+            pixelOffset: new Cesium.Cartesian2(15, 0),
+        },
+    });
     const pinBuilder = new Cesium.PinBuilder();
     const handler = new Cesium.ScreenSpaceEventHandler(viewer.canvas);
+    let timerAutoRenderPath;
     let currentCoordinate;
-    let waypointsArray = ko.observableArray();
     let path;
 
     let WaypointViewModel = function() {
         let self = this;
         self.waypointsArray = ko.observableArray();
+        self.defaultHeight = ko.observable(100).extend({numeric: 2});
+        self.selectAllWaypoints = ko.observable(false);
 
-        self.addWaypoint = function(longitude, latitude, height, billboardId = null) {
+        self.selectAllWaypoints.subscribe(function(value) {
+            self.waypointsArray().forEach(waypoint => {
+                waypoint.isSelected(value);
+            });
+        });
+
+        self.selectWaypointByBillboardId = function (billboardId) {
+            self.waypointsArray().forEach(waypoint => {
+                if(waypoint.billboard_id === billboardId) {
+                    waypoint.isSelected(true);
+                } else {
+                    waypoint.isSelected(false);
+                }
+            });
+        }
+
+        self.addWaypoint = function(longitude, latitude, height = self.defaultHeight(), billboardId = null) {
+            if(billboardId === null) {
+                const billboard = viewer.entities.add({
+                    position: Cesium.Cartesian3.fromDegrees(longitude, latitude, height),
+                    billboard: {
+                        image: pinBuilder.fromText(self.waypointsArray().length, Cesium.Color.BLUE, 48).toDataURL(),
+                        verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
+                    }
+                });
+                billboardId = billboard.id;
+            }
             self.waypointsArray.push({
                 longitude: roundToPrecision(longitude, 6),
                 latitude: roundToPrecision(latitude, 6),
                 height: ko.observable(height).extend({numeric: 2}),
+                isSelected: ko.observable(false),
                 billboard_id: billboardId
             });
         }
@@ -106,7 +135,7 @@
             }
         }
 
-        self.renderWaypointsFromRemote = function() {
+        self.loadWaypointsFromRemote = function() {
             $.ajax({
                 type: "GET",
                 url: "{{ route('cesium.waypoints_get') }}",
@@ -115,7 +144,7 @@
                     data.waypoints.forEach(waypoint => {
                         self.addWaypoint(waypoint.longitude, waypoint.latitude, waypoint.height);
                     });
-                    self.render();
+                    self.renderPath();
                 }
             })
         }
@@ -137,7 +166,7 @@
                 },
                 success: function(data) {
                     if(data.status === "success") {
-                        self.renderWaypointsFromRemote();
+                        self.loadWaypointsFromRemote();
                         swal.fire({
                             icon: 'success',
                             title: 'Waypoints synced successfully',
@@ -156,9 +185,11 @@
             })
         }
 
-        self.render = function () {
-            viewer.entities.removeAll();
-            if (self.waypointsArray().length >= 1) {
+        self.renderPath = function () {
+            if (path) {
+                viewer.entities.remove(path);
+            }
+            if (self.waypointsArray().length > 1) {
                 const waypointsRenderArray = [];
                 self.waypointsArray().forEach(waypoint => {
                     waypointsRenderArray.push(
@@ -166,34 +197,37 @@
                         waypoint.latitude,
                         waypoint.height()
                     );
-
-                    const billboard = viewer.entities.add({
-                        position: Cesium.Cartesian3.fromDegrees(waypoint.longitude, waypoint.latitude, waypoint.height()),
-                        billboard: {
-                            image: pinBuilder.fromText(self.waypointsArray().indexOf(waypoint), Cesium.Color.BLUE, 48).toDataURL(),
-                            verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
-                        }
-                    });
-                    waypoint.billboard_id = billboard.id;
                 });
 
-                if (self.waypointsArray().length > 1) {
-                    waypointsRenderArray.push(
-                        self.waypointsArray()[0].longitude,
-                        self.waypointsArray()[0].latitude,
-                        self.waypointsArray()[0].height()
-                    );
+                waypointsRenderArray.push(
+                    self.waypointsArray()[0].longitude,
+                    self.waypointsArray()[0].latitude,
+                    self.waypointsArray()[0].height()
+                );
 
-                    path = viewer.entities.add({
-                        polyline: {
-                            positions: Cesium.Cartesian3.fromDegreesArrayHeights(waypointsRenderArray),
-                            width: 5,
-                            material: Cesium.Color.GREEN,
-                            clampToGround: false,
-                        },
-                    });
-                }
+                path = viewer.entities.add({
+                    polyline: {
+                        positions: Cesium.Cartesian3.fromDegreesArrayHeights(waypointsRenderArray),
+                        width: 5,
+                        material: Cesium.Color.GREEN,
+                        clampToGround: false,
+                    },
+                });
             }
+        }
+
+        self.reloadWaypointBillboards = function () {
+            viewer.entities.removeAll();
+            self.waypointsArray().forEach(waypoint => {
+                const billboard = viewer.entities.add({
+                    position: Cesium.Cartesian3.fromDegrees(waypoint.longitude, waypoint.latitude, waypoint.height()),
+                    billboard: {
+                        image: pinBuilder.fromText(self.waypointsArray().indexOf(waypoint), Cesium.Color.BLUE, 48).toDataURL(),
+                        verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
+                    }
+                });
+                waypoint.billboard_id = billboard.id;
+            });
         }
 
         self.clearAll = function (disableWarning=false) {
@@ -213,23 +247,23 @@
                 self.waypointsArray.removeAll();
             }
         }
+
+        self.removeSelectedWaypoints = function () {
+            Swal.fire({
+                title: "Remove selected waypoints?",
+                showCancelButton: true,
+                confirmButtonText: "Process",
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    self.waypointsArray.remove(function (waypoint) {
+                        return waypoint.isSelected() === true;
+                    });
+                    self.reloadWaypointBillboards();
+                    self.renderPath();
+                }
+            });
+        }
     }
-
-    let waypointViewModel = new WaypointViewModel();
-    ko.applyBindings(waypointViewModel, document.getElementById('toolbox'));
-
-    waypointViewModel.renderWaypointsFromRemote();
-
-    const coordBox = viewer.entities.add({
-        label: {
-            show: false,
-            showBackground: true,
-            font: "14px monospace",
-            horizontalOrigin: Cesium.HorizontalOrigin.LEFT,
-            verticalOrigin: Cesium.VerticalOrigin.TOP,
-            pixelOffset: new Cesium.Cartesian2(15, 0),
-        },
-    });
 
     handler.setInputAction(movement => {
         currentCoordinate = viewer.camera.pickEllipsoid(
@@ -248,41 +282,25 @@
         }
     }, Cesium.ScreenSpaceEventType.MOUSE_MOVE);
 
-    handler.setInputAction(position => {
-        if (currentCoordinate) {
-            const cartographic = Cesium.Cartographic.fromCartesian(currentCoordinate);
-            const longitude = Cesium.Math.toDegrees(cartographic.longitude);
-            const latitude = Cesium.Math.toDegrees(cartographic.latitude);
-            const height = cartographic.height;
-            waypointViewModel.addWaypoint(longitude, latitude, height);
-            waypointViewModel.render();
-        }
-    }, Cesium.ScreenSpaceEventType.RIGHT_CLICK);
-
     document.addEventListener(
         "keydown",
         (event) => {
             switch (event.key) {
-                case "Backspace":
-                    if(viewer.selectedEntity) {
-                        if(viewer.selectedEntity.billboard){
-                            const billboardId = viewer.selectedEntity.id;
-                            waypointViewModel.waypointsArray.remove(function (waypointsArray) {
-                                return waypointsArray.billboard_id === billboardId;
-                            });
-                            viewer.entities.remove(viewer.entities.getById(billboardId));
-                            waypointViewModel.render();
+                case 'A':
+                case 'a':
+                    if (currentCoordinate) {
+                        if(timerAutoRenderPath){
+                            clearTimeout(timerAutoRenderPath);
                         }
+                        timerAutoRenderPath = setTimeout(() => {
+                            waypointViewModel.renderPath();
+                        }, 500);
+                        const cartographic = Cesium.Cartographic.fromCartesian(currentCoordinate);
+                        const longitude = Cesium.Math.toDegrees(cartographic.longitude);
+                        const latitude = Cesium.Math.toDegrees(cartographic.latitude);
+                        const height = cartographic.height;
+                        waypointViewModel.addWaypoint(longitude, latitude);
                     }
-                    break;
-                case 'R':
-                case 'r':
-                    waypointViewModel.render();
-                    break;
-
-                case 'C':
-                case 'c':
-                    waypointViewModel.clearAll();
                     break;
             }
         }
@@ -293,9 +311,15 @@
             if (selectedEntity.billboard) {
                 const billboard = viewer.entities.getById(selectedEntity.id);
                 const waypointInfo = waypointViewModel.getWaypointInfoByBillboardId(selectedEntity.id);
+                waypointViewModel.selectWaypointByBillboardId(billboard.id);
                 billboard.description = `Waypoint ${waypointInfo.order}(${waypointInfo.longitude}, ${waypointInfo.latitude}, ${waypointInfo.height})`;
             }
         }
     });
+
+    let waypointViewModel = new WaypointViewModel();
+    ko.applyBindings(waypointViewModel, document.getElementById('toolbox'));
+
+    waypointViewModel.loadWaypointsFromRemote();
 </script>
 
