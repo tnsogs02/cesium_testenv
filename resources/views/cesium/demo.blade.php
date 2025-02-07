@@ -286,6 +286,9 @@
         "keydown",
         (event) => {
             switch (event.key) {
+                case "Backspace":
+                    waypointViewModel.removeSelectedWaypoints();
+                    break;
                 case 'A':
                 case 'a':
                     if (currentCoordinate) {
